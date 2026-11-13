@@ -2,7 +2,7 @@
 
 HTTP API for gym membership invoicing and gateway reconciliation across the UAE, Saudi Arabia and Bahrain. It is the GymNation engineering take-home: members with E.164 phone normalization, plans and agreements with prorated VAT invoices, and reconciliation of card-gateway batches against expected invoices.
 
-> **Status:** Parts 1 (members and phones) and 2 (plans, agreements, invoices) are built and tested. Part 3 is next. The checklist below is updated after each milestone.
+> **Status:** All three Parts are built and tested: members and phones, plans/agreements/invoices, and reconciliation. The Postman collection is included. The checklist below is updated after each milestone.
 
 ## Status
 
@@ -12,9 +12,9 @@ HTTP API for gym membership invoicing and gateway reconciliation across the UAE,
 | Project scaffold (TypeScript, Fastify, Vitest, Dockerfile) | Done |
 | Part 1: `POST /members`, `GET /members/lookup` | Done |
 | Part 2: `POST /plans`, `POST /agreements`, `GET /agreements/:id/invoices` | Done (both golden examples pass) |
-| Part 3: `POST /reconciliation/runs`, `GET /reconciliation/runs/:id` | Not started |
-| `NOTES.md`, `PROMPTS.md`, Postman collection | `NOTES.md` and `PROMPTS.md` kept current, Postman not started |
-| Both Docker builds verified locally | Done for Parts 1 and 2 (205 tests pass in the test target, runtime image 63 MB, starts with `--network none`) |
+| Part 3: `POST /reconciliation/runs`, `GET /reconciliation/runs/:id` | Done |
+| `NOTES.md`, `PROMPTS.md`, Postman collection | Done ([gymnation-api.postman_collection.json](gymnation-api.postman_collection.json), 32 requests) |
+| Both Docker builds verified locally | Done for all Parts (285 tests pass in the test target, runtime image 63 MB, starts with `--network none`, every Postman request passes against the container) |
 
 ## Run it
 
@@ -68,8 +68,20 @@ Every error uses `{"error": {"code", "message"}}`. Malformed input returns `422 
    - [tests/dates.test.ts](tests/dates.test.ts), [tests/money.test.ts](tests/money.test.ts): strict date parsing, clamping, leap years, half-up rounding
    - [tests/invoices.test.ts](tests/invoices.test.ts): both golden examples, full-price starts, due_day 31 clamping, mid-history windows, BHD fils
    - [tests/plans.test.ts](tests/plans.test.ts), [tests/agreements.test.ts](tests/agreements.test.ts): HTTP tests for Part 2, including the 366/367-day range boundary and the concurrent duplicate plan id
-4. **Manual walkthrough:** import `gymnation-api.postman_collection.json` into Postman, start the container, and run the requests in order: Health, then Member, Plan, Agreement, Invoices, Reconciliation run, and Read run. The collection saves the returned ids into variables for later requests. Restart the container to reset state. The collection is a manual client and does not reproduce the hidden grader.
+   - [tests/reconciliation.test.ts](tests/reconciliation.test.ts): unit tests for row errors and matching (every verdict, ±1 tolerance, earliest-due-date tie-break, sorting, shuffled rows)
+   - [tests/reconciliation-runs.test.ts](tests/reconciliation-runs.test.ts): HTTP tests for Part 3, including `INVALID_ROWS`, FIRST plus invoice 2 in one month, the declined-only invoice, and GET returning the identical body
+4. **Manual walkthrough:** see [Postman](#postman) below.
 5. **AI usage:** [PROMPTS.md](PROMPTS.md) logs the AI conversations used to build this. [.claude/](.claude/README.md) holds the skills the AI used, and [CLAUDE.md](CLAUDE.md) holds the rules it followed.
+
+## Postman
+
+1. Start the API: `docker run --rm -p 8080:8080 gymnation-api`.
+2. In Postman, choose **Import** and select [gymnation-api.postman_collection.json](gymnation-api.postman_collection.json).
+3. Run folder **1. Happy path** in order: Health, Create Member, Lookup Member, Create Plan, Create Agreement, List Invoices, Create Reconciliation Run, Read Reconciliation Run. Each request has test scripts, and the returned ids are saved in the collection variables `memberId`, `agreementId` and `runId`.
+4. Run folder **2. Validation and error examples**. It uses the records from step 3, and each request checks its status and error code.
+5. Restart the container to reset all state.
+
+`baseUrl` defaults to `http://localhost:8080`. The collection is a manual client and does not reproduce the hidden grader.
 
 ## Repository map
 
@@ -81,7 +93,8 @@ Every error uses `{"error": {"code", "message"}}`. Malformed input returns `422 
 | [NOTES.md](NOTES.md) | How to run, what was skipped, one line per assumption |
 | [Dockerfile](Dockerfile) | Stages `deps`, `build`, `test` and `runtime` (default) |
 | [.claude/](.claude/README.md) | The Claude Code skills used to build the repo (rules are in `CLAUDE.md`) |
-| [src/domain/](src/domain/) | Pure logic with no I/O: countries, phones, calendar dates, money rounding, invoice schedule |
+| [src/domain/](src/domain/) | Pure logic with no I/O: countries, phones, calendar dates, money rounding, invoice schedule, reconciliation |
 | [src/http/](src/http/) | Fastify app, error envelope and routes |
 | [src/store.ts](src/store.ts) | In-memory `Map` state with synchronous uniqueness checks |
 | [tests/](tests/) | Vitest unit tests and HTTP tests (`app.inject`, fresh app per test) |
+| [gymnation-api.postman_collection.json](gymnation-api.postman_collection.json) | Postman collection: happy path plus every error case |

@@ -47,3 +47,18 @@ This file logs the AI conversations used to build this project, with the reason 
     - `src/domain/invoices.ts`: computes only the months inside the query window, so `invoice_no` comes from arithmetic, not from a loop over the whole history.
   - Checked the running container: the invoice response matches the brief's sample output byte for byte.
 - **Why:** the golden numbers and the exact field order are what the grader replays, so they were pinned in tests before any code was written.
+
+## Session 4 (2026-11-13): Part 3 and the Postman collection
+
+- **Tool:** Claude Code (Claude Opus 5.5) with the `fastify-best-practices`, `tdd`, `vitest` and `codebase-design` skills
+- **Prompt:** "Go to the next part, Part 3. I will test all together."
+- **What the AI did:**
+  - Re-read the original brief for the exact response shapes: a run row is `{gateway_txn_id, verdict, invoice}` and an unmatched invoice is `{agreement_id, invoice_no, due_date, total, currency}`.
+  - Wrote `src/domain/reconciliation.ts` as two pure functions:
+    - `rowErrors` builds the `INVALID_ROWS` list.
+    - `reconcile` links each settled row on its own, then assigns verdicts. Because no row's choice depends on another row, the result cannot depend on row order.
+  - Kept the HTTP layer thin: it validates `month` and the dates, asks the store for each agreement's currency, and builds the expected invoices with the Part 2 schedule (`invoicesBetween`).
+  - Added unit and HTTP tests for every verdict, the ±1 boundary, the tie-break, the declined-only invoice, the sort order, shuffled rows, and the immutable stored snapshot.
+  - Generated the Postman collection with a script and replayed all 32 requests against the running container, twice, with every check passing.
+- **Why:** the matching rules are where small mistakes cost points, so they live in one pure file that a unit test can hit directly. That file is also the obvious place to change during the live interview.
+

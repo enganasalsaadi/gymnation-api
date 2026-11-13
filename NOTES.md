@@ -15,9 +15,16 @@ State is in memory and starts empty on every start. There is no seed data.
 
 ## What was skipped
 
-- Part 3 (reconciliation) is not built yet. It is the next milestone.
-- The Postman collection is not written yet. It will be added once every endpoint exists.
 - There is no persistence, authentication, rate limiting or OpenAPI document. The brief does not ask for them.
+
+## Design decisions and trade-offs
+
+- **Pure domain, thin HTTP.** Phones, dates, money, invoices and reconciliation live in `src/domain/` with no I/O, so every rule is unit-tested directly. Routes only validate, look things up and call the domain.
+- **In-memory `Map` store.** The brief wants an empty start and no network. Uniqueness checks are synchronous (no `await` between check and insert), so concurrent creates cannot both win.
+- **Invoices are computed, never stored.** Each request computes only the months inside its window, so `invoice_no` comes from arithmetic and stays fast for any date.
+- **No floats for money and no `Date` for calendars.** BigInt half-up rounding and day-number arithmetic give exact, time-zone-free results.
+- **Reconciliation links each row on its own.** A settled row picks its invoice without looking at other rows, then verdicts are counted per invoice. That makes the result independent of row order by construction.
+- **Trade-off:** no persistence or OpenAPI document, to keep the code small for the live change.
 
 ## Assumptions
 
@@ -43,3 +50,14 @@ One line per decision where the brief is silent.
 - `GET /agreements/:id/invoices` checks `from`/`to` syntax first, then the agreement id (`404`), then `INVALID_RANGE`.
 - The range limit counts days from `from` to `to`: 366 days is accepted, 367 is `INVALID_RANGE`.
 - Any 4-digit year is accepted in dates, using the proleptic Gregorian calendar.
+- A reconciliation `month` must be strict `YYYY-MM` with a month from 01 to 12, otherwise `VALIDATION`.
+- A row's `currency` may be any string. An unknown code such as `USD` is not `VALIDATION`: it gives `CURRENCY_MISMATCH` when the agreement exists and is ignored when it does not.
+- A row `amount` must be an integer from 1 to `Number.MAX_SAFE_INTEGER`, otherwise `VALIDATION`.
+- A row with a bad shape or a bad `attempted_on` date fails the whole request with `VALIDATION`, before any `INVALID_ROWS` check. Only the 3 brief codes produce `INVALID_ROWS`.
+- When a row has several problems, each is listed, in the order `DUPLICATE_TXN`, `ROW_OUTSIDE_MONTH`, `CURRENCY_MISMATCH`.
+- `DECLINED` rows are validated like settled rows, so they can produce `ROW_OUTSIDE_MONTH` and `CURRENCY_MISMATCH`.
+- `gateway_txn_id` duplicates are compared exactly (case-sensitive).
+- A response row has `gateway_txn_id`, `verdict` and `invoice`. An `unmatched_invoices` item has `agreement_id`, `invoice_no`, `due_date`, `total` and `currency`, as in the brief's example.
+- The `agreement_id` sort in `unmatched_invoices` compares plain code units, not locale order.
+- A run uses the agreements that exist when it is created and is stored as an immutable snapshot. Agreements added later do not change a stored run.
+- An `INVALID_ROWS` or `VALIDATION` request stores no run.

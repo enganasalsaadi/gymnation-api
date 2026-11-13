@@ -33,6 +33,29 @@ export function parseDate(text: string): CalendarDate | null {
   return { year, month, day };
 }
 
+export interface CalendarMonth {
+  year: number;
+  /** 1 to 12. */
+  month: number;
+}
+
+const MONTH_PATTERN = /^(\d{4})-(\d{2})$/;
+
+/** Strict `YYYY-MM` with a month from 01 to 12, otherwise null. */
+export function parseMonth(text: string): CalendarMonth | null {
+  const match = MONTH_PATTERN.exec(text);
+  if (match === null) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return null;
+  return { year, month };
+}
+
+/** First and last day of a month, both inclusive. */
+export function monthBounds({ year, month }: CalendarMonth): { first: CalendarDate; last: CalendarDate } {
+  return { first: { year, month, day: 1 }, last: { year, month, day: daysInMonth(year, month) } };
+}
+
 export function formatDate({ year, month, day }: CalendarDate): string {
   const pad = (n: number, width: number) => String(n).padStart(width, '0');
   return `${pad(year, 4)}-${pad(month, 2)}-${pad(day, 2)}`;

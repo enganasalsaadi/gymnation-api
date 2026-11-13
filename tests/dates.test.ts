@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { daysBetween, daysInMonth, dueDateIn, formatDate, parseDate } from '../src/domain/dates';
+import { daysBetween, daysInMonth, dueDateIn, formatDate, monthBounds, parseDate, parseMonth } from '../src/domain/dates';
 
 describe('parseDate', () => {
   it.each(['2026-09-20', '2028-02-29', '2026-12-31', '2026-01-01', '2000-02-29'])('accepts %s', (text) => {
@@ -63,5 +63,20 @@ describe('daysBetween', () => {
     expect(daysBetween(d('2026-12-31'), d('2027-01-01'))).toBe(1);
     expect(daysBetween(d('2026-01-01'), d('2027-01-02'))).toBe(366);
     expect(daysBetween(d('2026-10-01'), d('2026-09-20'))).toBe(-11);
+  });
+});
+
+describe('parseMonth', () => {
+  it.each(['2026-10', '2028-02', '0001-01', '9999-12'])('accepts %s', (text) => {
+    expect(parseMonth(text)).not.toBeNull();
+  });
+
+  it.each(['2026-13', '2026-00', '2026-1', '26-10', '2026-10-01', '2026/10', ' 2026-10', '2026-10 ', ''])('rejects %j', (text) => {
+    expect(parseMonth(text)).toBeNull();
+  });
+
+  it('gives the first and last day of a month, leap years included', () => {
+    expect(monthBounds({ year: 2028, month: 2 })).toEqual({ first: { year: 2028, month: 2, day: 1 }, last: { year: 2028, month: 2, day: 29 } });
+    expect(monthBounds({ year: 2026, month: 4 }).last.day).toBe(30);
   });
 });

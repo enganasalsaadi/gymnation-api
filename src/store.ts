@@ -1,4 +1,5 @@
 import type { CountryCode } from './domain/countries';
+import type { Reconciliation } from './domain/reconciliation';
 
 export interface Member {
   id: string;
@@ -28,6 +29,13 @@ export interface Agreement {
   due_day: number;
 }
 
+/** A stored reconciliation run. Written once and never changed. */
+export interface ReconciliationRun extends Reconciliation {
+  id: string;
+  /** `YYYY-MM`, already validated. */
+  month: string;
+}
+
 /**
  * All state, in memory. A new store is created per app instance, so every
  * start (and every test) begins empty.
@@ -41,6 +49,7 @@ export class Store {
   private readonly memberIdByPhone = new Map<string, string>();
   readonly plans = new Map<string, Plan>();
   readonly agreements = new Map<string, Agreement>();
+  readonly runs = new Map<string, ReconciliationRun>();
 
   /** Inserts the member, or returns the id of the member that already owns the phone. */
   addMember(member: Member): { ok: true } | { ok: false; existingId: string } {
@@ -65,5 +74,9 @@ export class Store {
 
   addAgreement(agreement: Agreement): void {
     this.agreements.set(agreement.id, agreement);
+  }
+
+  addRun(run: ReconciliationRun): void {
+    this.runs.set(run.id, run);
   }
 }

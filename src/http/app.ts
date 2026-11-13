@@ -4,6 +4,7 @@ import { agreementRoutes } from './agreements';
 import { registerErrorHandling } from './errors';
 import { memberRoutes } from './members';
 import { planRoutes } from './plans';
+import { reconciliationRoutes } from './reconciliation';
 
 export interface AppOptions {
   logger?: boolean;
@@ -29,6 +30,7 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   memberRoutes(app, store);
   planRoutes(app, store);
   agreementRoutes(app, store);
+  reconciliationRoutes(app, store);
 
   return app;
 }
