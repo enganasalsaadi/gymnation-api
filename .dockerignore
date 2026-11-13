@@ -6,3 +6,4 @@ coverage
 .env.*
 *.md
 *.postman_collection.json
+.claude
