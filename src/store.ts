@@ -8,6 +8,26 @@ export interface Member {
   phone: string;
 }
 
+export interface Plan {
+  /** Caller-chosen, stored byte for byte. */
+  id: string;
+  country: CountryCode;
+  currency: string;
+  /** Minor units, before VAT. */
+  monthly: number;
+  /** Minor units, before VAT. */
+  joining_fee: number;
+}
+
+export interface Agreement {
+  id: string;
+  member_id: string;
+  plan_id: string;
+  /** `YYYY-MM-DD`, already validated. */
+  start_date: string;
+  due_day: number;
+}
+
 /**
  * All state, in memory. A new store is created per app instance, so every
  * start (and every test) begins empty.
@@ -19,6 +39,8 @@ export interface Member {
 export class Store {
   readonly members = new Map<string, Member>();
   private readonly memberIdByPhone = new Map<string, string>();
+  readonly plans = new Map<string, Plan>();
+  readonly agreements = new Map<string, Agreement>();
 
   /** Inserts the member, or returns the id of the member that already owns the phone. */
   addMember(member: Member): { ok: true } | { ok: false; existingId: string } {
@@ -32,5 +54,16 @@ export class Store {
   findMemberByPhone(phone: string): Member | undefined {
     const id = this.memberIdByPhone.get(phone);
     return id === undefined ? undefined : this.members.get(id);
+  }
+
+  /** Inserts the plan, or returns false when the id is already taken. */
+  addPlan(plan: Plan): boolean {
+    if (this.plans.has(plan.id)) return false;
+    this.plans.set(plan.id, plan);
+    return true;
+  }
+
+  addAgreement(agreement: Agreement): void {
+    this.agreements.set(agreement.id, agreement);
   }
 }

@@ -1,7 +1,9 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { Store } from '../store';
+import { agreementRoutes } from './agreements';
 import { registerErrorHandling } from './errors';
 import { memberRoutes } from './members';
+import { planRoutes } from './plans';
 
 export interface AppOptions {
   logger?: boolean;
@@ -25,6 +27,8 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
 
   app.get('/health', async () => ({ status: 'ok' }));
   memberRoutes(app, store);
+  planRoutes(app, store);
+  agreementRoutes(app, store);
 
   return app;
 }

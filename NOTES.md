@@ -15,7 +15,7 @@ State is in memory and starts empty on every start. There is no seed data.
 
 ## What was skipped
 
-- Part 2 (plans, agreements, invoices) and Part 3 (reconciliation) are not built yet. They are the next milestones.
+- Part 3 (reconciliation) is not built yet. It is the next milestone.
 - The Postman collection is not written yet. It will be added once every endpoint exists.
 - There is no persistence, authentication, rate limiting or OpenAPI document. The brief does not ask for them.
 
@@ -37,3 +37,9 @@ One line per decision where the brief is silent.
 - A body that is not JSON (wrong content type, empty, unparseable or `null`) returns `422 VALIDATION`.
 - Unknown extra JSON fields are ignored and never echoed back.
 - When a request has several problems, schema `VALIDATION` is reported first, then lookups (`UNKNOWN_*` / `NOT_FOUND`), then business rules.
+- A plan `id` must be a non-empty string. It is stored exactly as sent (no trim, case-sensitive).
+- A plan is rejected with `VALIDATION` when `monthly + joining_fee` plus its VAT would pass `Number.MAX_SAFE_INTEGER`, because that is the largest net any invoice can have.
+- `POST /agreements` checks `start_date` before the lookups, so a bad date with an unknown member returns `VALIDATION`.
+- `GET /agreements/:id/invoices` checks `from`/`to` syntax first, then the agreement id (`404`), then `INVALID_RANGE`.
+- The range limit counts days from `from` to `to`: 366 days is accepted, 367 is `INVALID_RANGE`.
+- Any 4-digit year is accepted in dates, using the proleptic Gregorian calendar.

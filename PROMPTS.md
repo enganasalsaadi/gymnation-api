@@ -33,3 +33,17 @@ This file logs the AI conversations used to build this project, with the reason 
     - Synchronous check-and-insert for phone uniqueness.
   - Verified both Docker builds and a smoke test of the running container.
 - **Why:** each Part is graded separately, so Part 1 was finished and verified end to end before starting Part 2.
+
+## Session 3 (2026-11-13): `.claude/` folder and Part 2
+
+- **Tool:** Claude Code (Claude Opus 5.5) with the `fastify-best-practices`, `tdd`, `vitest` and `codebase-design` skills
+- **Prompt:** "Go to Part 2. Also I didn't see a `.claude` folder with the rules and skills; add it so the reviewer knows what I used to build."
+- **What the AI did:**
+  - Copied the 4 skills it used into `.claude/skills/` with a short `.claude/README.md` naming each source repo. The rules stay in the root `CLAUDE.md`, which Claude Code loads automatically. `.claude` is excluded from the Docker build context.
+  - Re-read the original brief for the exact agreement and invoice response shapes.
+  - Wrote the Part 2 tests first (dates, money, invoice schedule, then the HTTP routes), watched them fail, then implemented:
+    - `src/domain/dates.ts`: strict `YYYY-MM-DD` parsing and day numbers with no `Date` objects.
+    - `src/domain/money.ts`: BigInt round-half-up and a guard that keeps every total a safe integer.
+    - `src/domain/invoices.ts`: computes only the months inside the query window, so `invoice_no` comes from arithmetic, not from a loop over the whole history.
+  - Checked the running container: the invoice response matches the brief's sample output byte for byte.
+- **Why:** the golden numbers and the exact field order are what the grader replays, so they were pinned in tests before any code was written.
