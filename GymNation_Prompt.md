@@ -54,7 +54,7 @@ These rules must hold unconditionally:
 ## 3. Country & Currency Specification
 | Country | Code | Dial Code | Currency | Minor Units Ratio | VAT Rate | National Mobile Regex | E.164 Format |
 |---|---|---|---|---|---|---|---|
-| United Arab Emirates | AE | 971 | AED | 100 fils = 1 AED | 5% | `^05\d{8}$` (10 digits starting with `05`) | `+9715XXXXXXXX` (12 chars total) |
+| United Arab Emirates | AE | 971 | AED | 100 fils = 1 AED | 5% | `^05\d{8}$` (10 digits starting with `05`) | `+9715XXXXXXXX` (13 chars total) |
 | Saudi Arabia | SA | 966 | SAR | 100 halalas = 1 SAR | 15% | `^05\d{8}$` (10 digits starting with `05`) | `+9665XXXXXXXX` (13 chars total) |
 | Bahrain | BH | 973 | BHD | 1000 fils = 1 BHD | 10% | `^3\d{7}$` (8 digits starting with `3`, no trunk 0) | `+9733XXXXXXX` (12 chars total) |
 
@@ -207,28 +207,29 @@ src/
 - `kind`: `"FIRST"`
 - `due_date`: `start_date`
 - Determine:
-  - $N$: The first due date strictly after `start_date` ($N > 	ext{start\_date}$).
-  - $P$: The due date exactly one month before $N$.
-  - Days elapsed in cycle: $D = N - 	ext{start\_date}$ (in days).
-  - Total days in cycle: $C = N - P$ (in days).
-  - If `start_date` is itself a due date: $D = C$, ratio = 1 (full monthly price).
-- **Rounding Rule (Round Half Up to Whole Minor Unit):**
-  - Use exact math: `round_half_up(value) = Math.floor(value + 0.5)` for non-negative values.
-  - Net prorated base: $	ext{prorated} = 	ext{round\_half\_up}\left( rac{	ext{monthly} 	imes D}{C} 
-ight)$.
-  - `net` = $	ext{prorated} + 	ext{joining\_fee}$.
-  - `vat` = $	ext{round\_half\_up}(	ext{net} 	imes 	ext{vat\_rate})$.
-  - `total` = $	ext{net} + 	ext{vat}$.
-  - Note: Rounding occurs **exactly twice**: once for prorated net, once for VAT. Never round in major units.
+  - `N`: the first due date strictly after `start_date` (`N > start_date`).
+  - `P`: the due date one month before `N`, computed from the `due_day` anchor with clamping (e.g. due_day 31, N = 31 Mar -> P = 28/29 Feb). Never compute P as "N minus N's day number".
+  - Days elapsed in cycle: `D = N - start_date` (calendar days).
+  - Total days in cycle: `C = N - P` (calendar days).
+  - If `start_date` is itself a (clamped) due date: `N` is the next month's due date, `P = start_date`, so `D = C` and the ratio is 1 (full monthly price).
+- **Rounding Rule (Round Half Up to Whole Minor Unit):** implement with integer/BigInt quotient + remainder (see section 8.4). Never use floating point.
+  - `prorated = round_half_up(monthly * D / C)`
+  - `net = prorated + joining_fee`  (the joining fee is part of the VAT base)
+  - `vat = round_half_up(net * vat_rate)` with vat_rate as a rational: AE 5/100, SA 15/100, BH 10/100
+  - `total = net + vat`
+  - Rounding occurs **exactly twice**: once for the prorated amount, once for VAT. Never round in major units.
   - `proration`: `{ "days": D, "cycle_days": C }`.
+- **Golden examples from the brief:**
+  - SA, monthly 29900, joining 0, start 2026-09-20, due_day 1: N = 2026-10-01, P = 2026-09-01, D = 11, C = 30 -> net 10963, vat 1644, total 12607.
+  - AE, monthly 24900, joining 9900, start 2026-09-05, due_day 20: N = 2026-09-20, P = 2026-08-20, D = 15, C = 31 -> prorated 12048, net 21948, vat 1097, total 23045. Invoice 2 is due 2026-09-20.
 
 #### Subsequent Invoices (Invoice No. 2, 3, ...):
 - `kind`: `"MONTHLY"`
-- `invoice_no 2` is due on $N$.
-- `invoice_no 3` is due on next month's due date, and so on.
-- `net` = `monthly`.
-- `vat` = $	ext{round\_half\_up}(	ext{net} 	imes 	ext{vat\_rate})$.
-- `total` = $	ext{net} + 	ext{vat}$.
+- `invoice_no 2` is due on `N`.
+- `invoice_no 3` is due on next month's (clamped) due date, and so on.
+- `net = monthly`
+- `vat = round_half_up(net * vat_rate)`
+- `total = net + vat`
 - `proration`: `null`.
 
 ---
@@ -277,7 +278,7 @@ ight)$.
   - For each `SETTLED` row:
     - If `agreement_id` does not exist in store -> verdict: `MISSING_FROM_LEDGER`.
     - If agreement exists: find candidate expected invoices for that agreement where:
-      $$|	ext{invoice.total} - 	ext{row.amount}| \le 1 	ext{ minor unit}$$
+      `abs(invoice.total - row.amount) <= 1` (minor units)
     - If no candidates -> verdict: `MISSING_FROM_LEDGER`.
     - If multiple candidates -> tie-breaker: select candidate with the **earliest `due_date`**.
     - Link the row to this candidate invoice `(agreement_id, invoice_no)`. Multiple rows can link to the same candidate invoice.
@@ -296,7 +297,8 @@ ight)$.
   - `rows`: Returned in exact original request order. `invoice` is `{ agreement_id, invoice_no }` or `null`.
   - `unmatched_invoices`: Every expected invoice in `month` that has **zero settled rows** linked to it (invoices whose only rows were DECLINED belong here).
     - **Sorted strictly by:** `due_date` ASC, then `agreement_id` ASC, then `invoice_no` ASC.
-- **Persistence:** Save the run with a generated `id` so it can be retrieved via `GET /reconciliation/runs/:id`.
+- **Response:** HTTP `201 Created` with the full run body (`id`, `month`, `summary`, `rows`, `unmatched_invoices`).
+- **Persistence:** Save the run with a generated `id` so it can be retrieved via `GET /reconciliation/runs/:id`, which returns `200` with the exact same body (unknown id -> `404 NOT_FOUND`).
 
 ---
 
@@ -398,7 +400,7 @@ Use three complementary test styles:
 The code author's tests are not the hidden evaluator. Passing local tests is evidence, not proof; the external scoring service is the final authority.
 
 ### 8.4 Exact money math: do not use floating point
-Do not implement the earlier illustrative `Math.floor(value + 0.5)` formula with JavaScript `number` for money. IEEE-754 floating point can produce incorrect boundary rounding. Use integer arithmetic with `BigInt` and rational rates:
+Do not implement round-half-up as `Math.floor(value + 0.5)` with JavaScript `number` for money. IEEE-754 floating point can produce incorrect boundary rounding. Use integer arithmetic with `BigInt` and rational rates:
 - Prorated amount: calculate `monthly * days / cycleDays` with integer numerator and denominator, then round half up using quotient/remainder. For non-negative values: `q = numerator / denominator`, `r = numerator % denominator`, result is `q + (2*r >= denominator ? 1 : 0)`.
 - VAT rates: AE = 5/100, SA = 15/100, BH = 10/100. Compute `net * rateNumerator / rateDenominator` using the same integer half-up operation.
 - Validate values fit the API's accepted integer range; convert back to JSON numbers only after safe-range checks. Do not silently overflow `Number.MAX_SAFE_INTEGER`.
